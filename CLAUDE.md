@@ -13,8 +13,10 @@ Reactで実装した将棋アプリ。`src/App.jsx` 1ファイルに全ロジッ
   - 盤面初期化 (`initBoard`)
   - 移動ロジック (`getMoves`, `getLegalMoves`, `canDrop`)
   - 王手判定 (`isInCheck`)
-  - AIロジック
-  - Reactコンポーネント（UI）
+  - 定跡 (`OPENING_BOOK`, `getBookMove`) — 先手の戦型に応じた分岐あり（最大10手）
+  - AIロジック (`evaluate`, `negamax`, `cpuChooseMove`) — 5段階レベル対応
+  - CPUレベル設定 (`CPU_LEVELS`) — 入門/初級/中級/上級/最強
+  - Reactコンポーネント（UI） — タイトル画面でレベル選択
 
 ## デプロイ
 
