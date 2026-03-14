@@ -284,53 +284,191 @@ function ttSet(hash, depth, score, flag, move) {
 const TT_EXACT=0, TT_ALPHA=1, TT_BETA=2;
 
 // ─── Opening Book (定跡) ───
-// Moves as [fromR,fromC,toR,toC] for gote (owner=1)
-// Covers common responses: 居飛車 (static rook) and 矢倉 (yagura) style
+// 後手（CPU, owner=1）の応手を先手の戦型に応じて分岐
+// 盤面: row0=上(後手陣), row8=下(先手陣), col0=9筋, col8=1筋
+// 先手の初手で戦型を判定するヘルパー
+function senteOpened76(board) {
+  // 先手が7六歩（6,6→5,6）を突いたか → 矢倉・振り飛車系
+  const p = board[5][6];
+  return p && p.type==="P" && p.owner===0;
+}
+function senteOpened26(board) {
+  // 先手が2六歩（6,8→5,8 or 6,8→4,8）を突いたか → 居飛車急戦系
+  return !board[6]?.[8] || (board[5]?.[8]?.type==="P" && board[5][8].owner===0)
+    || (board[4]?.[8]?.type==="P" && board[4][8].owner===0);
+}
+
 const OPENING_BOOK = [
-  // Move 1 responses depending on sente's opening
+  // ===== 1手目: 先手の初手に関係なく3四歩が最有力 =====
   {
-    // Default: advance center pawn (3四歩)
     condition: (board, hands, moveNum) => moveNum === 0,
     moves: [
-      { fromR:2, fromC:2, toR:3, toC:2, promote:false }, // 3四歩 (7六歩に対する定跡応手)
-      { fromR:2, fromC:6, toR:3, toC:6, promote:false }, // 7四歩
+      { fromR:2, fromC:2, toR:3, toC:2, promote:false }, // 3四歩
+    ]
+  },
+
+  // ===== 2手目以降: 先手が7六歩の場合（矢倉・振り飛車系） =====
+  {
+    condition: (board, hands, moveNum) => moveNum === 1 && senteOpened76(board),
+    moves: [
+      { fromR:2, fromC:6, toR:3, toC:6, promote:false }, // 7四歩（矢倉志向）
+      { fromR:0, fromC:6, toR:1, toC:6, promote:false }, // 7二銀
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 2 && senteOpened76(board),
+    moves: [
+      { fromR:0, fromC:6, toR:1, toC:6, promote:false }, // 7二銀
+      { fromR:0, fromC:5, toR:1, toC:5, promote:false }, // 6二銀（矢倉組み）
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 3 && senteOpened76(board),
+    moves: [
+      { fromR:0, fromC:5, toR:1, toC:5, promote:false }, // 6二金
+      { fromR:0, fromC:3, toR:1, toC:3, promote:false }, // 4二金
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 4 && senteOpened76(board),
+    moves: [
+      { fromR:0, fromC:4, toR:1, toC:4, promote:false }, // 5二玉（居玉回避）
+      { fromR:0, fromC:3, toR:1, toC:3, promote:false }, // 4二金
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 5 && senteOpened76(board),
+    moves: [
+      { fromR:0, fromC:3, toR:1, toC:3, promote:false }, // 4二金
+      { fromR:1, fromC:6, toR:2, toC:5, promote:false }, // 6三銀（矢倉の銀）
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 6 && senteOpened76(board),
+    moves: [
+      { fromR:1, fromC:6, toR:2, toC:5, promote:false }, // 6三銀
+      { fromR:1, fromC:4, toR:2, toC:3, promote:false }, // 4三玉（囲いへ）
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 7 && senteOpened76(board),
+    moves: [
+      { fromR:2, fromC:5, toR:3, toC:4, promote:false }, // 5四銀（矢倉の攻め銀）
+      { fromR:1, fromC:4, toR:2, toC:3, promote:false }, // 4三玉
       { fromR:2, fromC:4, toR:3, toC:4, promote:false }, // 5四歩
     ]
   },
   {
-    // Move 2: develop pieces
-    condition: (board, hands, moveNum) => moveNum === 1,
+    condition: (board, hands, moveNum) => moveNum === 8 && senteOpened76(board),
     moves: [
-      { fromR:0, fromC:6, toR:1, toC:6, promote:false }, // 右銀上がり 7二銀
-      { fromR:0, fromC:2, toR:1, toC:2, promote:false }, // 左銀上がり 3二銀
-      { fromR:0, fromC:3, toR:1, toC:3, promote:false }, // 左金上がり 4二金
+      { fromR:1, fromC:4, toR:2, toC:3, promote:false }, // 4三玉
+      { fromR:2, fromC:4, toR:3, toC:4, promote:false }, // 5四歩
+      { fromR:1, fromC:3, toR:2, toC:2, promote:false }, // 3二金（美濃風）
     ]
   },
   {
-    // Move 3: continue development
+    condition: (board, hands, moveNum) => moveNum === 9 && senteOpened76(board),
+    moves: [
+      { fromR:2, fromC:3, toR:2, toC:2, promote:false }, // 3二玉（囲い完成）
+      { fromR:2, fromC:4, toR:3, toC:4, promote:false }, // 5四歩
+      { fromR:2, fromC:0, toR:3, toC:0, promote:false }, // 1四歩（端歩）
+    ]
+  },
+
+  // ===== 2手目以降: 先手が2六歩の場合（居飛車急戦系） =====
+  {
+    condition: (board, hands, moveNum) => moveNum === 1 && senteOpened26(board),
+    moves: [
+      { fromR:0, fromC:2, toR:1, toC:2, promote:false }, // 3二銀（飛車先受け準備）
+      { fromR:2, fromC:6, toR:3, toC:6, promote:false }, // 7四歩
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 2 && senteOpened26(board),
+    moves: [
+      { fromR:0, fromC:5, toR:1, toC:5, promote:false }, // 6二銀
+      { fromR:0, fromC:3, toR:1, toC:3, promote:false }, // 4二金
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 3 && senteOpened26(board),
+    moves: [
+      { fromR:0, fromC:3, toR:1, toC:3, promote:false }, // 4二金
+      { fromR:0, fromC:5, toR:1, toC:5, promote:false }, // 6二金
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 4 && senteOpened26(board),
+    moves: [
+      { fromR:0, fromC:4, toR:1, toC:4, promote:false }, // 5二玉
+      { fromR:2, fromC:6, toR:3, toC:6, promote:false }, // 7四歩
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 5 && senteOpened26(board),
+    moves: [
+      { fromR:1, fromC:5, toR:2, toC:4, promote:false }, // 5三銀（中央に銀）
+      { fromR:1, fromC:4, toR:2, toC:3, promote:false }, // 4三玉
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 6 && senteOpened26(board),
+    moves: [
+      { fromR:1, fromC:4, toR:2, toC:3, promote:false }, // 4三玉
+      { fromR:2, fromC:6, toR:3, toC:6, promote:false }, // 7四歩
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 7 && senteOpened26(board),
+    moves: [
+      { fromR:2, fromC:3, toR:2, toC:2, promote:false }, // 3二玉（美濃囲い方向）
+      { fromR:2, fromC:0, toR:3, toC:0, promote:false }, // 1四歩
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 8 && senteOpened26(board),
+    moves: [
+      { fromR:1, fromC:3, toR:2, toC:3, promote:false }, // 4三金（囲い強化）
+      { fromR:2, fromC:0, toR:3, toC:0, promote:false }, // 1四歩
+      { fromR:2, fromC:4, toR:3, toC:4, promote:false }, // 5四歩
+    ]
+  },
+  {
+    condition: (board, hands, moveNum) => moveNum === 9 && senteOpened26(board),
+    moves: [
+      { fromR:2, fromC:0, toR:3, toC:0, promote:false }, // 1四歩（端歩で玉の退路）
+      { fromR:2, fromC:4, toR:3, toC:4, promote:false }, // 5四歩
+      { fromR:1, fromC:2, toR:2, toC:1, promote:false }, // 2三銀（飛車先受け）
+    ]
+  },
+
+  // ===== フォールバック: 戦型不明の場合 =====
+  {
+    condition: (board, hands, moveNum) => moveNum === 1,
+    moves: [
+      { fromR:0, fromC:6, toR:1, toC:6, promote:false }, // 7二銀
+      { fromR:0, fromC:2, toR:1, toC:2, promote:false }, // 3二銀
+    ]
+  },
+  {
     condition: (board, hands, moveNum) => moveNum === 2,
     moves: [
       { fromR:0, fromC:5, toR:1, toC:5, promote:false }, // 6二金
-      { fromR:0, fromC:4, toR:1, toC:4, promote:false }, // 5二玉 (居玉回避)
-      { fromR:1, fromC:1, toR:3, toC:3, promote:false }, // 4四角 (角交換拒否)
+      { fromR:0, fromC:3, toR:1, toC:3, promote:false }, // 4二金
     ]
   },
   {
-    // Move 4: castle or keep developing
     condition: (board, hands, moveNum) => moveNum === 3,
     moves: [
-      { fromR:2, fromC:6, toR:3, toC:6, promote:false }, // 7四歩
-      { fromR:2, fromC:2, toR:3, toC:2, promote:false }, // 3四歩
       { fromR:0, fromC:4, toR:1, toC:4, promote:false }, // 5二玉
+      { fromR:2, fromC:6, toR:3, toC:6, promote:false }, // 7四歩
     ]
   },
   {
-    // Move 5
     condition: (board, hands, moveNum) => moveNum === 4,
     moves: [
-      { fromR:1, fromC:4, toR:2, toC:3, promote:false }, // 4三玉 → 囲いへ
+      { fromR:0, fromC:3, toR:1, toC:3, promote:false }, // 4二金
       { fromR:1, fromC:6, toR:2, toC:5, promote:false }, // 6三銀
-      { fromR:2, fromC:0, toR:3, toC:0, promote:false }, // 1四歩 (端歩)
     ]
   },
 ];
@@ -745,30 +883,53 @@ function negamax(board, hands, depth, alpha, beta, color, ply, startTime, timeLi
 }
 
 // ─── Iterative Deepening ───
-function cpuChooseMove(board, hands, cpuMoveNum) {
-  // Try opening book first
-  const bookMove = getBookMove(board, hands, cpuMoveNum);
-  if(bookMove) return bookMove;
+// CPUレベル設定: {maxDepth, timeLimit, useBook, randomRate}
+const CPU_LEVELS = [
+  { name:"入門", maxDepth:0, timeLimit:0,    useBook:false, randomRate:1.0 },  // 完全ランダム
+  { name:"初級", maxDepth:2, timeLimit:500,  useBook:false, randomRate:0.3 },  // 30%ランダム
+  { name:"中級", maxDepth:3, timeLimit:1000, useBook:true,  randomRate:0.0 },
+  { name:"上級", maxDepth:4, timeLimit:2000, useBook:true,  randomRate:0.0 },
+  { name:"最強", maxDepth:6, timeLimit:3000, useBook:true,  randomRate:0.0 },
+];
+
+function cpuChooseMove(board, hands, cpuMoveNum, level) {
+  const cfg = CPU_LEVELS[level] || CPU_LEVELS[4];
+  const moves = generateAllMoves(board, hands, 1);
+  if(moves.length === 0) return null;
+
+  // 完全ランダム（入門）
+  if(cfg.maxDepth === 0) {
+    return moves[Math.floor(Math.random()*moves.length)];
+  }
+
+  // ランダムで悪手を指す確率
+  if(cfg.randomRate > 0 && Math.random() < cfg.randomRate) {
+    return moves[Math.floor(Math.random()*moves.length)];
+  }
+
+  // 定跡
+  if(cfg.useBook) {
+    const bookMove = getBookMove(board, hands, cpuMoveNum);
+    if(bookMove) return bookMove;
+  }
 
   // Clear history for fresh search (keep TT)
   killerMoves = Array.from({length:20}, () => [null, null]);
   historyTable = {};
 
   const startTime = Date.now();
-  const timeLimit = 3000; // 3 seconds
   let bestMove = null;
 
-  // Iterative deepening: depth 1 → 2 → 3 → 4 → ...
-  for(let depth = 1; depth <= 6; depth++) {
-    if(Date.now()-startTime > timeLimit * 0.7) break; // don't start new depth if >70% time used
-    const result = negamax(board, hands, depth, -Infinity, Infinity, -1, 0, startTime, timeLimit);
+  // Iterative deepening
+  for(let depth = 1; depth <= cfg.maxDepth; depth++) {
+    if(Date.now()-startTime > cfg.timeLimit * 0.7) break;
+    const result = negamax(board, hands, depth, -Infinity, Infinity, -1, 0, startTime, cfg.timeLimit);
     if(result.move) bestMove = result.move;
-    if(Date.now()-startTime > timeLimit * 0.85) break;
+    if(Date.now()-startTime > cfg.timeLimit * 0.85) break;
   }
 
   if(bestMove) return bestMove;
-  const moves = generateAllMoves(board, hands, 1);
-  return moves.length > 0 ? moves[Math.floor(Math.random()*moves.length)] : null;
+  return moves[Math.floor(Math.random()*moves.length)];
 }
 
 // ─── Component ───
@@ -782,8 +943,10 @@ export default function Shogi() {
   const [gameOver, setGameOver] = useState(null);
   const [moveLog, setMoveLog] = useState([]);
   const [cpuMode, setCpuMode] = useState(true);
+  const [cpuLevel, setCpuLevel] = useState(4); // 0:入門 1:初級 2:中級 3:上級 4:最強
   const [cpuThinking, setCpuThinking] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  const [showLevelSelect, setShowLevelSelect] = useState(false);
   const [lastMove, setLastMove] = useState(null); // {fromR,fromC,toR,toC} or {toR,toC} for drops
   const cpuRef = useRef(null);
   const logRef = useRef(null);
@@ -819,7 +982,7 @@ export default function Shogi() {
     setCpuThinking(true);
     cpuRef.current = setTimeout(() => {
       const cpuMoveNum = Math.floor(moveLog.length / 2);
-      const move = cpuChooseMove(board, hands, cpuMoveNum);
+      const move = cpuChooseMove(board, hands, cpuMoveNum, cpuLevel);
       if(!move) { setCpuThinking(false); return; }
       const desc = makeMoveDesc(move, board, 1);
       const { board:nb, hands:nh } = applyMove(board, hands, move, 1);
@@ -834,7 +997,7 @@ export default function Shogi() {
       setCpuThinking(false);
     }, 400);
     return () => clearTimeout(cpuRef.current);
-  }, [turn, cpuMode, gameOver, promotePrompt, board, hands, gameStarted]);
+  }, [turn, cpuMode, gameOver, promotePrompt, board, hands, gameStarted, cpuLevel]);
 
   const handleCellClick = useCallback((r, c) => {
     if(gameOver || promotePrompt || cpuThinking) return;
@@ -892,7 +1055,7 @@ export default function Shogi() {
     setBoard(initBoard()); setTurn(0); setHands([{},{}]);
     setSelected(null); setLegalDests([]); setPromotePrompt(null);
     setGameOver(null); setMoveLog([]); setCpuThinking(false);
-    setLastMove(null); setGameStarted(false);
+    setLastMove(null); setGameStarted(false); setShowLevelSelect(false);
   }, []);
 
   const legalSet = useMemo(() => {
@@ -919,6 +1082,15 @@ export default function Shogi() {
   const colLabels = [9,8,7,6,5,4,3,2,1];
   const rowLabels = ["一","二","三","四","五","六","七","八","九"];
 
+  const levelEmojis = ["🔰","⭐","⭐⭐","⭐⭐⭐","👑"];
+  const levelDescs = [
+    "ランダムに指します",
+    "たまにミスをします",
+    "定跡を使います",
+    "しっかり読みます",
+    "全力で指します",
+  ];
+
   // ─── Title Screen ───
   if(!gameStarted) {
     return (
@@ -936,29 +1108,57 @@ export default function Shogi() {
           background:"linear-gradient(90deg,#f5deb3,#daa520,#f5deb3)",
           WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
         }}>将棋</div>
-        <div style={{fontSize:"clamp(12px,2.5vw,16px)", color:"#a09080", marginBottom:12, letterSpacing:"0.1em"}}>
-          対局モードを選んでください
-        </div>
-        <div style={{display:"flex", flexDirection:"column", gap:14, width:"100%", maxWidth:280}}>
-          <button onClick={() => {setCpuMode(true); setGameStarted(true);}} style={{
-            ...menuBtn, background:"linear-gradient(135deg,#daa520,#b8860b)", color:"#1a1a2e",
-          }}>
-            <span style={{fontSize:"clamp(18px,4vw,24px)"}}>🤖</span>
-            <div>
-              <div style={{fontWeight:900, fontSize:"clamp(14px,3vw,18px)"}}>CPU対戦</div>
-              <div style={{fontSize:"clamp(10px,2vw,12px)", opacity:0.7, marginTop:2}}>先手（あなた） vs 後手（CPU）</div>
-            </div>
-          </button>
-          <button onClick={() => {setCpuMode(false); setGameStarted(true);}} style={{
-            ...menuBtn, background:"rgba(212,167,106,0.15)", border:"1px solid #8b7355", color:"#e0d5c1",
-          }}>
-            <span style={{fontSize:"clamp(18px,4vw,24px)"}}>👥</span>
-            <div>
-              <div style={{fontWeight:900, fontSize:"clamp(14px,3vw,18px)"}}>二人対戦</div>
-              <div style={{fontSize:"clamp(10px,2vw,12px)", opacity:0.7, marginTop:2}}>先手 vs 後手（交互に指す）</div>
-            </div>
-          </button>
-        </div>
+
+        {!showLevelSelect ? (<>
+          <div style={{fontSize:"clamp(12px,2.5vw,16px)", color:"#a09080", marginBottom:12, letterSpacing:"0.1em"}}>
+            対局モードを選んでください
+          </div>
+          <div style={{display:"flex", flexDirection:"column", gap:14, width:"100%", maxWidth:280}}>
+            <button onClick={() => {setCpuMode(true); setShowLevelSelect(true);}} style={{
+              ...menuBtn, background:"linear-gradient(135deg,#daa520,#b8860b)", color:"#1a1a2e",
+            }}>
+              <span style={{fontSize:"clamp(18px,4vw,24px)"}}>🤖</span>
+              <div>
+                <div style={{fontWeight:900, fontSize:"clamp(14px,3vw,18px)"}}>CPU対戦</div>
+                <div style={{fontSize:"clamp(10px,2vw,12px)", opacity:0.7, marginTop:2}}>先手（あなた） vs 後手（CPU）</div>
+              </div>
+            </button>
+            <button onClick={() => {setCpuMode(false); setGameStarted(true);}} style={{
+              ...menuBtn, background:"rgba(212,167,106,0.15)", border:"1px solid #8b7355", color:"#e0d5c1",
+            }}>
+              <span style={{fontSize:"clamp(18px,4vw,24px)"}}>👥</span>
+              <div>
+                <div style={{fontWeight:900, fontSize:"clamp(14px,3vw,18px)"}}>二人対戦</div>
+                <div style={{fontSize:"clamp(10px,2vw,12px)", opacity:0.7, marginTop:2}}>先手 vs 後手（交互に指す）</div>
+              </div>
+            </button>
+          </div>
+        </>) : (<>
+          <div style={{fontSize:"clamp(12px,2.5vw,16px)", color:"#a09080", marginBottom:8, letterSpacing:"0.1em"}}>
+            CPUのレベルを選んでください
+          </div>
+          <div style={{display:"flex", flexDirection:"column", gap:10, width:"100%", maxWidth:300}}>
+            {CPU_LEVELS.map((lv, i) => (
+              <button key={i} onClick={() => {setCpuLevel(i); setGameStarted(true);}} style={{
+                ...menuBtn,
+                background: i===4 ? "linear-gradient(135deg,#daa520,#b8860b)" : "rgba(212,167,106,0.15)",
+                border: i===4 ? "none" : "1px solid #8b7355",
+                color: i===4 ? "#1a1a2e" : "#e0d5c1",
+              }}>
+                <span style={{fontSize:"clamp(14px,3vw,20px)", minWidth:40, textAlign:"center"}}>{levelEmojis[i]}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:900, fontSize:"clamp(13px,2.8vw,16px)"}}>{lv.name}</div>
+                  <div style={{fontSize:"clamp(10px,2vw,12px)", opacity:0.7, marginTop:1}}>{levelDescs[i]}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setShowLevelSelect(false)} style={{
+            marginTop:8, background:"none", border:"1px solid #8b7355", color:"#a09080",
+            padding:"8px 24px", borderRadius:8, cursor:"pointer", fontFamily:"inherit",
+            fontSize:"clamp(11px,2.2vw,14px)",
+          }}>← 戻る</button>
+        </>)}
       </div>
     );
   }
@@ -983,7 +1183,7 @@ export default function Shogi() {
         fontSize:"clamp(10px,2vw,12px)", color:"#706050", marginBottom:5,
         padding:"2px 10px", borderRadius:10,
         background:"rgba(255,255,255,0.05)", border:"1px solid rgba(139,115,85,0.2)",
-      }}>{cpuMode ? "🤖 CPU対戦" : "👥 二人対戦"}</div>
+      }}>{cpuMode ? `🤖 CPU対戦（${CPU_LEVELS[cpuLevel].name}）` : "👥 二人対戦"}</div>
 
       <div style={{display:"flex", alignItems:"center", gap:12, marginBottom:5, fontSize:"clamp(12px,2.5vw,16px)"}}>
         <span style={{
