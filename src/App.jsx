@@ -932,6 +932,7 @@ export default function Shogi() {
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700;900&display=swap" rel="stylesheet"/>
         <div style={{
           fontSize:"clamp(40px,12vw,72px)", fontWeight:900, letterSpacing:"0.2em",
+          lineHeight:1.3, padding:"8px 0",
           background:"linear-gradient(90deg,#f5deb3,#daa520,#f5deb3)",
           WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
         }}>将棋</div>
@@ -1004,15 +1005,16 @@ export default function Shogi() {
         }}>☖ 後手{cpuMode?"（CPU）":""}</span>
       </div>
 
-      {cpuThinking && (
-        <div style={{color:"#3498db", fontSize:"clamp(10px,2vw,13px)", marginBottom:4, fontWeight:700, display:"flex", alignItems:"center", gap:6}}>
-          <span style={{display:"inline-block", animation:"spin 1s linear infinite", fontSize:14}}>⚙</span>
-          思考中...
-        </div>
-      )}
-      {inCheck && !gameOver && !cpuThinking && (
-        <div style={{color:"#e74c3c", fontSize:"clamp(11px,2.2vw,14px)", marginBottom:4, fontWeight:700}}>王手！</div>
-      )}
+      <div style={{height:"clamp(16px,3vw,20px)", marginBottom:4, display:"flex", alignItems:"center", justifyContent:"center"}}>
+        {cpuThinking ? (
+          <div style={{color:"#3498db", fontSize:"clamp(10px,2vw,13px)", fontWeight:700, display:"flex", alignItems:"center", gap:6}}>
+            <span style={{display:"inline-block", animation:"spin 1s linear infinite", fontSize:14}}>⚙</span>
+            思考中...
+          </div>
+        ) : inCheck && !gameOver ? (
+          <div style={{color:"#e74c3c", fontSize:"clamp(11px,2.2vw,14px)", fontWeight:700}}>王手！</div>
+        ) : null}
+      </div>
 
       <div style={{
         display:"flex", gap:"clamp(4px,1.5vw,12px)", alignItems:"center",
